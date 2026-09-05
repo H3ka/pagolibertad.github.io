@@ -330,6 +330,67 @@ label,
   line-height: 1.45;
 }
 
+.plan-table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.plan-table th,
+.plan-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.plan-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.plan-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plan-table tr.is-done {
+  opacity: 0.55;
+}
+
+.plan-table tr.is-done td:nth-child(3) {
+  text-decoration: line-through;
+}
+
+.plan-table .date-cell {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.plan-table .btn-mini {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  background: #efe4d2;
+  color: var(--ink);
+}
+
+.plan-table .done-label {
+  color: var(--forest-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .panel {
   padding: 18px;
 }

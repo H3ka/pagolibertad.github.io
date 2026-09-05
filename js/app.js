@@ -1,5 +1,25 @@
 const STORAGE_KEY = "pago-libertad-state-v1";
 const NOTIFIED_KEY = "pago-libertad-notified";
+
+/** Plan fijo 2026: montos por tarjeta en cada quincena. */
+const PAYMENT_PLAN = [
+  { id: "2026-09-15-amex", fecha: "2026-09-15", tarjeta: "AMEX", monto: 2274.21 },
+  { id: "2026-09-15-nu", fecha: "2026-09-15", tarjeta: "NU", monto: 1431.2 },
+  { id: "2026-09-15-suburbia", fecha: "2026-09-15", tarjeta: "SUBURBIA", monto: 224.4 },
+  { id: "2026-09-15-bbva", fecha: "2026-09-15", tarjeta: "BBVA", monto: 5220.19 },
+  { id: "2026-09-30-bbva", fecha: "2026-09-30", tarjeta: "BBVA", monto: 3146.44 },
+  { id: "2026-09-30-banamex", fecha: "2026-09-30", tarjeta: "BANAMEX", monto: 6003.56 },
+  { id: "2026-10-15-banamex", fecha: "2026-10-15", tarjeta: "BANAMEX", monto: 8846.08 },
+  { id: "2026-10-15-amex", fecha: "2026-10-15", tarjeta: "AMEX", monto: 303.92 },
+  { id: "2026-10-30-amex", fecha: "2026-10-30", tarjeta: "AMEX", monto: 9150 },
+  { id: "2026-11-15-amex", fecha: "2026-11-15", tarjeta: "AMEX", monto: 1771.87 },
+  { id: "2026-11-15-mp", fecha: "2026-11-15", tarjeta: "MercadoPago", monto: 7378.13 },
+  { id: "2026-11-30-mp", fecha: "2026-11-30", tarjeta: "MercadoPago", monto: 4620.22 }
+];
+
+const PLAN_TOTAL = PAYMENT_PLAN.reduce((sum, item) => sum + item.monto, 0);
+const PLAN_QUINCENAL = 9150;
+
 function formatMoney(value) {
   const amount = Number(value) || 0;
   const whole = Number.isInteger(amount);
@@ -39,6 +59,42 @@ function loadState() {
 
 function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function shortPlanDate(ymd) {
+  const date = fromYmd(ymd);
+  return new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" }).format(date);
+}
+
+function planPayDate(ymd) {
+  return adjustPayDate(fromYmd(ymd));
+}
+
+function planItemDone(state, item) {
+  return state.pagos.some(
+    (pago) =>
+      pago.planId === item.id ||
+      (pago.nota === item.tarjeta &&
+        Number(pago.monto) === item.monto &&
+        Math.abs(fromYmd(pago.fecha) - planPayDate(item.fecha)) < 1000 * 60 * 60 * 24 * 8)
+  );
+}
+
+function planForOfficialDate(ymd) {
+  return PAYMENT_PLAN.filter((item) => item.fecha === ymd);
+}
+
+function planTotalForOfficialDate(ymd) {
+  return planForOfficialDate(ymd).reduce((sum, item) => sum + item.monto, 0);
 }
 
 function parseMoney(value) {
@@ -85,8 +141,14 @@ function adjustPayDate(date) {
   return adjusted;
 }
 
-function reminderDate(payDate) {
-  return new Date(payDate.getFullYear(), payDate.getMonth(), payDate.getDate());
+function reminderDate(official, payDate) {
+  const day = official.getDay();
+  // Sábado, domingo o lunes: pago y aviso el jueves anterior.
+  if (day === 0 || day === 1 || day === 6) {
+    return new Date(payDate.getFullYear(), payDate.getMonth(), payDate.getDate());
+  }
+  // Resto: aviso un día antes de la quincena.
+  return addDays(payDate, -1);
 }
 
 function upcomingCycles(fromDate, count = 24) {
@@ -100,7 +162,7 @@ function upcomingCycles(fromDate, count = 24) {
       cycles.push({
         official,
         payDate,
-        reminder: reminderDate(payDate),
+        reminder: reminderDate(official, payDate),
         moved: toYmd(official) !== toYmd(payDate)
       });
     }
@@ -141,21 +203,32 @@ function buildCalendar(state) {
     .filter((cycle) => cycle.reminder >= today)
     .slice(0, 24)
     .map((cycle) => {
-      const amount = state.pagoQuincenal
-        ? ` Monto sugerido: ${formatMoney(state.pagoQuincenal)}.`
-        : "";
+      const planSum = planTotalForOfficialDate(toYmd(cycle.official));
+      const amount = planSum
+        ? ` Monto del plan: ${formatMoney(planSum)}.`
+        : state.pagoQuincenal
+          ? ` Monto sugerido: ${formatMoney(state.pagoQuincenal)}.`
+          : "";
+      const sameDay = toYmd(cycle.reminder) === toYmd(cycle.payDate);
+      const summary = sameDay
+        ? "Pago Libertad — hoy es quincena"
+        : "Pago Libertad — mañana es quincena";
+      const description = sameDay
+        ? `Hoy pagas tu deuda (${longDate.format(cycle.payDate)}).${amount}`
+        : `Mañana pagas tu deuda (${longDate.format(cycle.payDate)}).${amount}`;
+      const alarm = sameDay ? "Hoy pagas tu deuda" : "Mañana pagas tu deuda";
       return [
         "BEGIN:VEVENT",
-        `UID:libertad-${toYmd(cycle.payDate)}@pagolibertad`,
+        `UID:libertad-${toYmd(cycle.reminder)}@pagolibertad`,
         `DTSTAMP:${icsDate(today)}T150000Z`,
-        `DTSTART;VALUE=DATE:${icsDate(cycle.payDate)}`,
-        `DTEND;VALUE=DATE:${icsDate(addDays(cycle.payDate, 1))}`,
-        "SUMMARY:Pago Libertad — quincena",
-        `DESCRIPTION:Hoy es tu quincena. Fecha de pago: ${longDate.format(cycle.payDate)}.${amount}`,
+        `DTSTART;VALUE=DATE:${icsDate(cycle.reminder)}`,
+        `DTEND;VALUE=DATE:${icsDate(addDays(cycle.reminder, 1))}`,
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${description}`,
         "BEGIN:VALARM",
         "ACTION:DISPLAY",
         "TRIGGER:PT9H",
-        "DESCRIPTION:Hoy pagas tu deuda",
+        `DESCRIPTION:${alarm}`,
         "END:VALARM",
         "END:VEVENT"
       ].join("\r\n");
@@ -218,10 +291,23 @@ function render(state) {
       ? `La quincena oficial es ${longDate.format(cycle.official)}, así que el pago se recorre a ${longDate.format(cycle.payDate)}.`
       : `Pagas el ${longDate.format(cycle.payDate)}.`;
     $("cycle-title").textContent = longDate.format(cycle.payDate);
-    $("cycle-detail").textContent = `${movedText} El aviso es el mismo día.`;
-    $("cycle-eta").textContent = state.pagoQuincenal
-      ? `Sugerido esta quincena: ${formatMoney(state.pagoQuincenal)}.`
-      : "Registra el monto que pagues esta quincena.";
+    const sameDayReminder = toYmd(cycle.reminder) === toYmd(cycle.payDate);
+    $("cycle-detail").textContent = sameDayReminder
+      ? `${movedText} El aviso es el mismo jueves ${longDate.format(cycle.reminder)}.`
+      : `${movedText} El aviso es el ${longDate.format(cycle.reminder)}, un día antes.`;
+
+    const officialYmd = toYmd(cycle.official);
+    const planItems = planForOfficialDate(officialYmd);
+    const planSum = planTotalForOfficialDate(officialYmd);
+    if (planItems.length) {
+      $("cycle-eta").textContent = `Esta quincena: ${formatMoney(planSum)} (${planItems
+        .map((item) => `${item.tarjeta} ${formatMoney(item.monto)}`)
+        .join(" · ")}).`;
+    } else if (state.pagoQuincenal) {
+      $("cycle-eta").textContent = `Sugerido esta quincena: ${formatMoney(state.pagoQuincenal)}.`;
+    } else {
+      $("cycle-eta").textContent = "Registra el monto que pagues esta quincena.";
+    }
 
     const upcoming = $("upcoming-list");
     if (upcoming) {
@@ -230,23 +316,61 @@ function render(state) {
         .filter((item) => startOfDay(item.payDate) >= now)
         .slice(0, 6)
         .map((item) => {
+          const ymd = toYmd(item.official);
+          const sum = planTotalForOfficialDate(ymd);
+          const sumText = sum ? ` · ${formatMoney(sum)}` : "";
+          const sameDay = toYmd(item.reminder) === toYmd(item.payDate);
+          const aviso = sameDay
+            ? `aviso y pago: ${longDate.format(item.payDate)}`
+            : `aviso ${longDate.format(item.reminder)}, pago ${longDate.format(item.payDate)}`;
           if (item.moved) {
-            return `<li>${longDate.format(item.official)} → pagas y aviso: ${longDate.format(item.payDate)}.</li>`;
+            return `<li>${escapeHtml(longDate.format(item.official))} → ${escapeHtml(aviso)}${sumText}</li>`;
           }
-          return `<li>Pagas y aviso: ${longDate.format(item.payDate)}.</li>`;
+          return `<li>${escapeHtml(aviso)}${sumText}</li>`;
         })
         .join("");
     }
   }
+
+  const planBody = $("plan-body");
+  const planDone = PAYMENT_PLAN.filter((item) => planItemDone(state, item)).length;
+  $("plan-count").textContent = `${planDone}/${PAYMENT_PLAN.length}`;
+  $("plan-summary").textContent = `Total del plan: ${formatMoney(PLAN_TOTAL)}. Quincenas de ${formatMoney(PLAN_QUINCENAL)} (excepto 30 nov).`;
+
+  let lastFecha = "";
+  planBody.innerHTML = PAYMENT_PLAN.map((item) => {
+    const done = planItemDone(state, item);
+    const showDate = item.fecha !== lastFecha;
+    lastFecha = item.fecha;
+    const payDate = planPayDate(item.fecha);
+    const moved = toYmd(payDate) !== item.fecha;
+    const dateLabel = moved
+      ? `${shortPlanDate(item.fecha)} → ${shortPlanDate(toYmd(payDate))}`
+      : shortPlanDate(item.fecha);
+    return `
+      <tr class="${done ? "is-done" : ""}" data-plan-id="${escapeHtml(item.id)}">
+        <td class="date-cell">${showDate ? escapeHtml(dateLabel) : ""}</td>
+        <td>${escapeHtml(item.tarjeta)}</td>
+        <td class="num">${escapeHtml(formatMoney(item.monto))}</td>
+        <td>${
+          done
+            ? '<span class="done-label">Pagado</span>'
+            : `<button class="btn btn-mini" type="button" data-plan-pay="${escapeHtml(item.id)}">Pagar</button>`
+        }</td>
+      </tr>`;
+  }).join("");
 
   const banner = $("cycle-banner");
   if (progress >= 1) {
     banner.hidden = false;
     banner.innerHTML = "<strong>Eres libre.</strong><span>Tu deuda llegó a cero.</span>";
   } else if (bannerCycle) {
+    const today = toYmd(new Date());
+    const isReminderOnly = toYmd(bannerCycle.reminder) === today && toYmd(bannerCycle.payDate) !== today;
     banner.hidden = false;
-    banner.innerHTML =
-      "<strong>Hoy es quincena.</strong><span>Registra tu pago para que el muñequito avance.</span>";
+    banner.innerHTML = isReminderOnly
+      ? `<strong>Mañana pagas tu deuda.</strong><span>Fecha de pago: ${longDate.format(bannerCycle.payDate)}.</span>`
+      : "<strong>Hoy es quincena.</strong><span>Registra tu pago para que el muñequito avance.</span>";
   } else {
     banner.hidden = true;
   }
@@ -262,10 +386,12 @@ function render(state) {
         (pago) => `
           <li>
             <div>
-              <strong>${formatMoney(pago.monto)}</strong>
-              <small>${longDate.format(fromYmd(pago.fecha))}${pago.nota ? ` · ${pago.nota}` : ""}</small>
+              <strong>${escapeHtml(formatMoney(pago.monto))}</strong>
+              <small>${escapeHtml(longDate.format(fromYmd(pago.fecha)))}${
+                pago.nota ? ` · ${escapeHtml(pago.nota)}` : ""
+              }</small>
             </div>
-            <button type="button" data-delete="${pago.id}">Borrar</button>
+            <button type="button" data-delete="${escapeHtml(pago.id)}">Borrar</button>
           </li>`
       )
       .join("");
@@ -289,7 +415,10 @@ async function maybeNotify(state) {
 
   const registration = await navigator.serviceWorker?.ready.catch(() => null);
   const title = "Pago Libertad";
-  const body = `Hoy es tu quincena. Pagas el ${longDate.format(cycle.payDate)}.`;
+  const sameDay = toYmd(cycle.reminder) === toYmd(cycle.payDate);
+  const body = sameDay
+    ? `Hoy es tu quincena. Pagas el ${longDate.format(cycle.payDate)}.`
+    : `Mañana es tu quincena. Pagas el ${longDate.format(cycle.payDate)}.`;
   if (registration?.showNotification) {
     await registration.showNotification(title, { body, icon: "./icons/icon-192.png" });
   } else {
@@ -341,9 +470,27 @@ function bind(state) {
 
   $("add-payment").addEventListener("click", () => {
     const cycle = nextCycle();
+    const planSum = cycle ? planTotalForOfficialDate(toYmd(cycle.official)) : 0;
     $("payment-form").fecha.value = toYmd(cycle?.payDate || new Date());
-    $("payment-form").monto.value = state.pagoQuincenal || "";
+    $("payment-form").monto.value = planSum || state.pagoQuincenal || PLAN_QUINCENAL;
+    $("payment-form").nota.value = "";
     $("payment-modal").hidden = false;
+  });
+
+  $("plan-body").addEventListener("click", (event) => {
+    const planId = event.target.dataset?.planPay;
+    if (!planId) return;
+    const item = PAYMENT_PLAN.find((entry) => entry.id === planId);
+    if (!item || planItemDone(state, item)) return;
+    state.pagos.push({
+      id: uid(),
+      planId: item.id,
+      monto: item.monto,
+      fecha: toYmd(planPayDate(item.fecha)),
+      nota: item.tarjeta
+    });
+    saveState(state);
+    render(state);
   });
 
   $("cancel-payment").addEventListener("click", () => {

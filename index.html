@@ -98,6 +98,27 @@
 
       <section class="panel">
         <div class="panel-head">
+          <h2>Plan de pagos</h2>
+          <span id="plan-count">0</span>
+        </div>
+        <p class="panel-text muted" id="plan-summary"></p>
+        <div class="plan-table-wrap">
+          <table class="plan-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tarjeta</th>
+                <th class="num">Pago</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="plan-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
           <h2>Pagos</h2>
           <span id="payments-count">0</span>
         </div>
@@ -121,7 +142,7 @@
           </label>
           <label>
             Pago quincenal (opcional)
-            <input name="pagoQuincenal" inputmode="decimal" autocomplete="off" placeholder="4000" />
+            <input name="pagoQuincenal" inputmode="decimal" autocomplete="off" placeholder="9150" />
           </label>
           <button class="btn primary" type="submit">Empezar el camino</button>
         </form>
@@ -167,9 +188,9 @@
             <input name="pagoQuincenal" inputmode="decimal" autocomplete="off" placeholder="4000" />
           </label>
           <p class="hint">
-            Las quincenas son el día 15 y el último día del mes. Si caen en sábado,
-            domingo o lunes, el pago se recorre al jueves anterior. El recordatorio
-            avisa el mismo día de esa fecha de pago.
+            Las quincenas son el día 15 y el último día del mes. El aviso llega un día
+            antes (ej. el 14 si pagas el 15). Si caen en sábado, domingo o lunes, el
+            pago y el aviso se recorren al jueves anterior.
           </p>
           <div class="actions">
             <button class="btn primary" type="submit">Guardar</button>
