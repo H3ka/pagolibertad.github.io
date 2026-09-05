@@ -324,7 +324,7 @@ function render(state) {
     const payDate = planPayDate(item.fecha);
     const moved = toYmd(payDate) !== item.fecha;
     const dateLabel = moved
-      ? `${shortPlanDate(item.fecha)} → ${shortPlanDate(toYmd(payDate))}`
+      ? `${shortPlanDate(item.fecha)}→${shortPlanDate(toYmd(payDate))}`
       : shortPlanDate(item.fecha);
     return `
       <tr class="${done ? "is-done" : ""}" data-plan-id="${escapeHtml(item.id)}">
