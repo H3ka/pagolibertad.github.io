@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Pago Libertad">
+  <rect width="180" height="180" rx="40" fill="#1f4d3a"/>
+  <circle cx="132" cy="48" r="22" fill="#f0c14b"/>
+  <path d="M18 148h144" stroke="#d9c7a3" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="58" cy="108" r="14" fill="#f3d2b3"/>
+  <rect x="48" y="122" width="20" height="22" rx="6" fill="#c45c26"/>
+  <path d="M128 86v36" stroke="#e8d9b8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M112 86h32" stroke="#e8d9b8" stroke-width="8" stroke-linecap="round"/>
+</svg>
