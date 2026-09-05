@@ -287,48 +287,27 @@ function render(state) {
   }
 
   if (cycle) {
-    const movedText = cycle.moved
-      ? `La quincena oficial es ${longDate.format(cycle.official)}, así que el pago se recorre a ${longDate.format(cycle.payDate)}.`
-      : `Pagas el ${longDate.format(cycle.payDate)}.`;
     $("cycle-title").textContent = longDate.format(cycle.payDate);
-    const sameDayReminder = toYmd(cycle.reminder) === toYmd(cycle.payDate);
-    $("cycle-detail").textContent = sameDayReminder
-      ? `${movedText} El aviso es el mismo jueves ${longDate.format(cycle.reminder)}.`
-      : `${movedText} El aviso es el ${longDate.format(cycle.reminder)}, un día antes.`;
 
     const officialYmd = toYmd(cycle.official);
     const planItems = planForOfficialDate(officialYmd);
     const planSum = planTotalForOfficialDate(officialYmd);
+    const cards = $("cycle-cards");
+
     if (planItems.length) {
-      $("cycle-eta").textContent = `Esta quincena: ${formatMoney(planSum)} (${planItems
-        .map((item) => `${item.tarjeta} ${formatMoney(item.monto)}`)
-        .join(" · ")}).`;
+      $("cycle-eta").textContent = `Próximo pago: ${formatMoney(planSum)}`;
+      cards.innerHTML = planItems
+        .map(
+          (item) =>
+            `<li><span>${escapeHtml(item.tarjeta)}</span><strong>${escapeHtml(formatMoney(item.monto))}</strong></li>`
+        )
+        .join("");
     } else if (state.pagoQuincenal) {
-      $("cycle-eta").textContent = `Sugerido esta quincena: ${formatMoney(state.pagoQuincenal)}.`;
+      $("cycle-eta").textContent = `Próximo pago: ${formatMoney(state.pagoQuincenal)}`;
+      cards.innerHTML = "";
     } else {
       $("cycle-eta").textContent = "Registra el monto que pagues esta quincena.";
-    }
-
-    const upcoming = $("upcoming-list");
-    if (upcoming) {
-      const now = startOfDay(new Date());
-      upcoming.innerHTML = upcomingCycles(now)
-        .filter((item) => startOfDay(item.payDate) >= now)
-        .slice(0, 6)
-        .map((item) => {
-          const ymd = toYmd(item.official);
-          const sum = planTotalForOfficialDate(ymd);
-          const sumText = sum ? ` · ${formatMoney(sum)}` : "";
-          const sameDay = toYmd(item.reminder) === toYmd(item.payDate);
-          const aviso = sameDay
-            ? `aviso y pago: ${longDate.format(item.payDate)}`
-            : `aviso ${longDate.format(item.reminder)}, pago ${longDate.format(item.payDate)}`;
-          if (item.moved) {
-            return `<li>${escapeHtml(longDate.format(item.official))} → ${escapeHtml(aviso)}${sumText}</li>`;
-          }
-          return `<li>${escapeHtml(aviso)}${sumText}</li>`;
-        })
-        .join("");
+      cards.innerHTML = "";
     }
   }
 
